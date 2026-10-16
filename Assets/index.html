@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1"
+	>
+
+	<title>Notebook Studio — Nova Jupyter Bridge</title>
+
+	<meta
+		name="description"
+		content="Local interactive Python notebook and debugger for Panic Nova."
+	>
+
+	<link
+		rel="stylesheet"
+		href="/app.css"
+	>
+
+	<script
+		src="/app.js"
+		defer
+	></script>
+</head>
+
+<body>
+
+	<!-- ================================================
+		 MAIN NOTEBOOK TOOLBAR
+	================================================= -->
+
+	<header class="top">
+
+		<!-- BRAND -->
+
+		<div class="brand">
+
+			<span
+				class="emblem"
+				aria-hidden="true"
+			>
+				◈
+			</span>
+
+			<strong>Notebook Studio</strong>
+
+			<span
+				class="subtitle"
+				id="filename"
+			>
+				Notebook
+			</span>
+
+		</div>
+
+
+		<!-- ============================================
+			 SIDEBAR TOGGLES
+		============================================= -->
+
+		<div
+			class="panel-controls"
+			role="group"
+			aria-label="Notebook display panels"
+		>
+
+			<button
+				type="button"
+				id="toggleOutlineBtn"
+				class="panel-toggle"
+				aria-controls="notebookSidebar"
+				aria-expanded="false"
+				title="Show notebook sidebar"
+			>
+				☰ Notebook
+			</button>
+
+			<button
+				type="button"
+				id="toggleInspectorBtn"
+				class="panel-toggle"
+				aria-controls="debuggerSidebar"
+				aria-expanded="false"
+				title="Show debugger panel"
+			>
+				◇ Debugger
+			</button>
+
+		</div>
+
+
+		<!-- ============================================
+			 NOTEBOOK ACTIONS
+		============================================= -->
+
+		<div class="tools">
+
+			<!-- SAVE STATUS -->
+
+			<span
+				id="saveState"
+				class="muted"
+				role="status"
+				aria-live="polite"
+			>
+				Ready
+			</span>
+
+
+			<!-- SAVE NOTEBOOK -->
+
+			<button
+				type="button"
+				id="saveBtn"
+				title="Save notebook (Command + S)"
+			>
+				Save
+			</button>
+
+
+			<!-- RUN ALL CODE CELLS -->
+
+			<button
+				type="button"
+				id="runAllBtn"
+				class="primary"
+				title="Run all Python code cells"
+			>
+				▶ Run All
+			</button>
+
+
+			<!-- CLEAR OUTPUTS -->
+
+			<button
+				type="button"
+				id="clearBtn"
+				title="Clear and save all notebook outputs"
+			>
+				Clear Outputs
+			</button>
+
+
+			<!-- INTERRUPT EXECUTION -->
+
+			<button
+				type="button"
+				id="interruptBtn"
+				title="Stop current Python execution"
+			>
+				■ Stop
+			</button>
+
+
+			<!-- RESTART KERNEL -->
+
+			<button
+				type="button"
+				id="restartBtn"
+				title="Restart the Python kernel"
+			>
+				↻ Restart
+			</button>
+
+
+			<!-- SELECT KERNEL -->
+
+			<select
+				id="kernelSelect"
+				aria-label="Select Python kernel"
+				title="Python kernel"
+			>
+				<option value="">
+					Loading kernels…
+				</option>
+			</select>
+
+
+			<!-- KERNEL STATUS -->
+
+			<span
+				id="kernelStatus"
+				class="kernel-status"
+				role="status"
+				aria-live="polite"
+			>
+				○ Offline
+			</span>
+
+		</div>
+
+	</header>
+
+
+	<!-- ================================================
+		 FLOATING DEBUGGER TOOLBAR
+	================================================= -->
+
+	<!--
+		The floating debugger is hidden initially.
+
+		app.js makes it visible when debugging starts.
+
+		The backend provides debugger state and the
+		current execution location.
+
+		app.js and app.css display the moving red
+		execution-line highlight separately.
+	-->
+
+	<div
+		id="floatingDebugger"
+		class="floating-debugger"
+		role="toolbar"
+		aria-label="Python debugger controls"
+		aria-hidden="true"
+		hidden
+	>
+
+		<!-- DEBUGGER STATUS -->
+
+		<div class="floating-debugger-status">
+
+			<span
+				id="floatingDebugIndicator"
+				class="floating-debug-indicator"
+				aria-hidden="true"
+			>
+				●
+			</span>
+
+			<span
+				id="floatingDebugStatus"
+				class="floating-debug-status"
+				role="status"
+				aria-live="polite"
+			>
+				Debugging
+			</span>
+
+		</div>
+
+
+		<!-- DEBUGGER ACTIONS -->
+
+		<div
+			class="floating-debugger-actions"
+			role="group"
+			aria-label="Debugger execution controls"
+		>
+
+			<!-- CONTINUE -->
+
+			<button
+				type="button"
+				id="floatingContinueBtn"
+				class="floating-debug-button"
+				title="Continue to next breakpoint"
+				aria-label="Continue debugging"
+				disabled
+			>
+				▶
+			</button>
+
+
+			<!-- PAUSE -->
+
+			<button
+				type="button"
+				id="floatingPauseBtn"
+				class="floating-debug-button"
+				title="Pause running debugger"
+				aria-label="Pause debugging"
+				disabled
+			>
+				⏸
+			</button>
+
+
+			<!-- STEP OVER -->
+
+			<button
+				type="button"
+				id="floatingStepOverBtn"
+				class="floating-debug-button"
+				title="Step Over — execute the current line"
+				aria-label="Step over"
+				disabled
+			>
+				↷
+			</button>
+
+
+			<!-- STEP INTO -->
+
+			<button
+				type="button"
+				id="floatingStepIntoBtn"
+				class="floating-debug-button"
+				title="Step Into — enter a function"
+				aria-label="Step into"
+				disabled
+			>
+				↓
+			</button>
+
+
+			<!-- STEP OUT -->
+
+			<button
+				type="button"
+				id="floatingStepOutBtn"
+				class="floating-debug-button"
+				title="Step Out — return from the current function"
+				aria-label="Step out"
+				disabled
+			>
+				↑
+			</button>
+
+
+			<!-- STOP DEBUGGING -->
+
+			<button
+				type="button"
+				id="floatingStopBtn"
+				class="floating-debug-button floating-debug-stop"
+				title="Stop the current debugging execution"
+				aria-label="Stop debugging"
+				disabled
+			>
+				■
+			</button>
+
+		</div>
+
+
+		<!-- HIDE FLOATING DEBUGGER -->
+
+		<button
+			type="button"
+			id="floatingCloseBtn"
+			class="floating-debug-close"
+			title="Hide floating debugger toolbar"
+			aria-label="Hide floating debugger toolbar"
+		>
+			×
+		</button>
+
+	</div>
+
+
+	<!-- ================================================
+		 NOTEBOOK WORKSPACE
+	================================================= -->
+
+	<div
+		class="layout"
+		id="studioLayout"
+	>
+
+
+		<!-- ============================================
+			 LEFT NOTEBOOK SIDEBAR
+		============================================= -->
+
+		<aside
+			class="files"
+			id="notebookSidebar"
+			aria-label="Notebook sidebar"
+			aria-hidden="true"
+			hidden
+		>
+
+			<h3>NOTEBOOK</h3>
+
+			<div
+				class="item"
+				id="fileLabel"
+			>
+				Loading…
+			</div>
+
+			<div class="divider"></div>
+
+
+			<!-- CELL OUTLINE -->
+
+			<h3>CELLS</h3>
+
+			<div
+				id="cellOutline"
+				aria-label="Notebook cell outline"
+			></div>
+
+			<div class="divider"></div>
+
+
+			<!-- KEYBOARD SHORTCUTS -->
+
+			<h3>SHORTCUTS</h3>
+
+			<p>
+				⇧ Enter
+				<span>Run &amp; next</span>
+			</p>
+
+			<p>
+				⌘ Enter
+				<span>Run cell</span>
+			</p>
+
+			<p>
+				⌘ S
+				<span>Save</span>
+			</p>
+
+		</aside>
+
+
+		<!-- ============================================
+			 MAIN NOTEBOOK EDITOR
+		============================================= -->
+
+		<main
+			class="notebook"
+			id="notebookEditor"
+			aria-label="Interactive notebook editor"
+		>
+
+			<!-- NOTEBOOK TITLE -->
+
+			<div class="notebook-title">
+
+				<h1 id="notebookTitle">
+					Notebook
+				</h1>
+
+				<p>
+					Interactive Python notebook ·
+					saved as a standard .ipynb file
+				</p>
+
+			</div>
+
+
+			<!-- ========================================
+				 INTERACTIVE NOTEBOOK CELLS
+			========================================= -->
+
+			<!--
+				app.js generates notebook cells here.
+
+				Each Python code cell includes:
+
+				- Run button
+				- Debug button
+				- Line-number gutter
+				- Breakpoint markers
+				- Red execution-line highlight
+				- Python code editor
+				- Execution output
+
+				The execution-line highlight is drawn
+				behind the editor and updates using
+				debugLocation from server.py.
+			-->
+
+			<div
+				id="cells"
+				aria-label="Notebook cells"
+			></div>
+
+
+			<!-- ========================================
+				 ADD NEW CELLS
+			========================================= -->
+
+			<div class="addrow">
+
+				<button
+					type="button"
+					id="addCodeBtn"
+					title="Add Python code cell"
+				>
+					+ Code
+				</button>
+
+				<button
+					type="button"
+					id="addMarkdownBtn"
+					title="Add Markdown cell"
+				>
+					+ Markdown
+				</button>
+
+				<button
+					type="button"
+					id="addRawBtn"
+					title="Add raw text cell"
+				>
+					+ Raw
+				</button>
+
+			</div>
+
+
+			<!-- NOTEBOOK FOOTER -->
+
+			<div class="footer">
+				Offline-first · no analytics ·
+				no third-party services
+			</div>
+
+		</main>
+
+
+		<!-- ============================================
+			 RIGHT DEBUGGER SIDEBAR
+		============================================= -->
+
+		<aside
+			class="inspector"
+			id="debuggerSidebar"
+			aria-label="Debugger panel"
+			aria-hidden="true"
+			hidden
+		>
+
+			<!-- DEBUGGER STATUS -->
+
+			<div class="inspect-head">
+
+				DEBUGGER
+
+				<span
+					id="debugState"
+					role="status"
+					aria-live="polite"
+				>
+					Inactive
+				</span>
+
+			</div>
+
+
+			<!-- ========================================
+				 DEBUGGER CONTROLS
+			========================================= -->
+
+			<div class="debugbar">
+
+				<button
+					type="button"
+					id="continueBtn"
+					title="Continue execution"
+					disabled
+				>
+					▶ Continue
+				</button>
+
+				<button
+					type="button"
+					id="stepOverBtn"
+					title="Step over"
+					disabled
+				>
+					↷ Over
+				</button>
+
+				<button
+					type="button"
+					id="stepIntoBtn"
+					title="Step into"
+					disabled
+				>
+					↓ Into
+				</button>
+
+				<button
+					type="button"
+					id="stepOutBtn"
+					title="Step out"
+					disabled
+				>
+					↑ Out
+				</button>
+
+			</div>
+
+
+			<!-- ========================================
+				 BREAKPOINTS
+			========================================= -->
+
+			<div class="inspector-sub">
+				BREAKPOINTS
+			</div>
+
+			<p class="hint">
+				Click beside a line number in a Python
+				code cell to set or remove a breakpoint.
+				Click that cell's Debug button to start.
+			</p>
+
+			<div
+				id="bpStatus"
+				class="breakpoint-status"
+				aria-label="Breakpoint verification"
+				aria-live="polite"
+			></div>
+
+
+			<!-- ========================================
+				 VARIABLES
+			========================================= -->
+
+			<div class="inspector-sub">
+
+				VARIABLES
+
+				<button
+					type="button"
+					id="refreshVars"
+					title="Refresh Python variables"
+					aria-label="Refresh Python variables"
+				>
+					↻
+				</button>
+
+			</div>
+
+			<div
+				id="variables"
+				class="variables"
+				aria-label="Python variables"
+			>
+				Run or debug a cell to start the kernel.
+			</div>
+
+
+			<!-- ========================================
+				 DEBUGGER EVENTS
+			========================================= -->
+
+			<div class="inspector-sub">
+				EVENTS
+			</div>
+
+			<pre
+				id="events"
+				class="events"
+				aria-label="Debugger events"
+			>Ready.</pre>
+
+		</aside>
+
+	</div>
+
+
+	<!-- ================================================
+		 NOTIFICATIONS
+	================================================= -->
+
+	<div
+		id="toast"
+		role="status"
+		aria-live="polite"
+	></div>
+
+</body>
+
+</html>

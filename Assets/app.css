@@ -1,0 +1,1574 @@
+/*
+ * Nova Jupyter Bridge — Notebook Studio
+ * Copyright (c) PatriotEver Lab
+ * SPDX-License-Identifier: MIT
+ *
+ * Local, privacy-friendly Jupyter notebook interface.
+ *
+ * Features:
+ * - Full-width notebook editing
+ * - Independently collapsible sidebars
+ * - Floating debugger toolbar
+ * - Current execution-line highlighting
+ * - Breakpoint markers beside line numbers
+ * - Responsive layout
+ * - Accessible controls
+ */
+
+/* =========================================================
+   THEME
+========================================================= */
+
+:root {
+    color-scheme: light;
+
+    --bg: #f7f8fa;
+    --paper: #ffffff;
+    --text: #242b38;
+    --muted: #7b8595;
+    --edge: #e4e8ef;
+
+    --blue: #2769df;
+    --lightblue: #edf3ff;
+    --purple: #715fe6;
+
+    --success: #188365;
+    --danger: #d33755;
+
+    --debug-line: rgba(225, 29, 72, 0.17);
+    --debug-line-border: #e11d48;
+    --debug-cell-border: #f1a0b2;
+
+    --code-line-height: 22px;
+    --code-padding-top: 2px;
+    --gutter-width: 56px;
+}
+
+/* =========================================================
+   GLOBAL
+========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+
+    min-height: 100vh;
+
+    font:
+        13px
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        Inter,
+        sans-serif;
+
+    color: var(--text);
+    background: var(--bg);
+}
+
+button,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    background: #ffffff;
+
+    border: 1px solid #dce1ea;
+    border-radius: 7px;
+
+    padding: 7px 11px;
+
+    cursor: pointer;
+    color: #3c4655;
+
+    white-space: nowrap;
+
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+    background: #f0f4ff;
+    border-color: #bed0ff;
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+.primary {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #ffffff;
+}
+
+.primary:hover:not(:disabled) {
+    background: #1e57bd;
+    border-color: #1e57bd;
+    color: #ffffff;
+}
+
+.muted {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.is-unsaved {
+    color: #b57623 !important;
+}
+
+.is-saving {
+    color: var(--blue) !important;
+}
+
+/* =========================================================
+   MAIN TOP TOOLBAR
+========================================================= */
+
+header.top {
+    min-height: 60px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 15px;
+    padding: 0 20px;
+
+    background: var(--paper);
+
+    border-bottom: 1px solid var(--edge);
+
+    position: sticky;
+    top: 0;
+
+    z-index: 30;
+}
+
+.brand,
+.tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brand {
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.brand strong {
+    font-size: 15px;
+    white-space: nowrap;
+}
+
+.brand .emblem {
+    font-size: 24px;
+    color: var(--purple);
+}
+
+.subtitle {
+    color: var(--muted);
+
+    border-left: 1px solid var(--edge);
+
+    padding-left: 12px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.tools select {
+    max-width: 180px;
+
+    padding: 7px;
+
+    border: 1px solid var(--edge);
+    border-radius: 7px;
+
+    background: #ffffff;
+}
+
+.kernel-status {
+    font-size: 11px;
+    white-space: nowrap;
+    color: #a16b26;
+}
+
+.kernel-status.online {
+    color: var(--success);
+}
+
+/* =========================================================
+   NOTEBOOK / DEBUGGER PANEL TOGGLES
+========================================================= */
+
+.top .panel-controls {
+    display: flex;
+    align-items: center;
+
+    gap: 6px;
+
+    flex-shrink: 0;
+}
+
+.panel-toggle {
+    padding: 6px 9px;
+
+    font-size: 12px;
+
+    border-color: var(--edge);
+    background: #ffffff;
+}
+
+.panel-toggle[aria-expanded="true"] {
+    background: var(--lightblue);
+
+    border-color: #b8c9ee;
+
+    color: #245ca9;
+}
+
+.panel-toggle:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+/* =========================================================
+   FLOATING DEBUGGER TOOLBAR
+========================================================= */
+
+/*
+ * The floating debugger is separate from both sidebars.
+ *
+ * It appears during debugging and can remain visible
+ * while the Notebook and Debugger panels are collapsed.
+ */
+
+.floating-debugger {
+    position: fixed;
+
+    top: 76px;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 10px;
+
+    width: max-content;
+    max-width: calc(100vw - 28px);
+
+    min-height: 46px;
+
+    padding: 7px 10px;
+
+    background: rgba(255, 255, 255, 0.98);
+
+    border: 1px solid #dce2eb;
+    border-radius: 11px;
+
+    box-shadow:
+        0 4px 14px rgba(20, 36, 61, 0.09),
+        0 12px 34px rgba(20, 36, 61, 0.12);
+
+    z-index: 100;
+
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+}
+
+.floating-debugger-status {
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    min-width: 0;
+
+    padding: 0 8px 0 3px;
+
+    border-right: 1px solid var(--edge);
+}
+
+.floating-debug-indicator {
+    font-size: 12px;
+    line-height: 1;
+
+    color: var(--purple);
+
+    flex-shrink: 0;
+}
+
+.floating-debug-status {
+    max-width: 220px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    color: #4a5568;
+}
+
+.floating-debugger.is-paused
+.floating-debug-indicator {
+    color: var(--danger);
+}
+
+.floating-debugger.is-running
+.floating-debug-indicator {
+    color: var(--success);
+}
+
+.floating-debugger.is-starting
+.floating-debug-indicator {
+    color: #c08a2a;
+}
+
+/* =========================================================
+   FLOATING DEBUGGER BUTTONS
+========================================================= */
+
+.floating-debugger-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 4px;
+}
+
+.floating-debug-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 31px;
+    height: 31px;
+
+    padding: 0;
+
+    border: 1px solid transparent;
+    border-radius: 7px;
+
+    background: transparent;
+
+    color: #48576a;
+
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.floating-debug-button:hover:not(:disabled) {
+    background: var(--lightblue);
+
+    border-color: #d6e2fb;
+
+    color: var(--blue);
+}
+
+.floating-debug-button:active:not(:disabled) {
+    background: #dce9ff;
+}
+
+.floating-debug-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.floating-debug-stop {
+    color: var(--danger);
+}
+
+.floating-debug-stop:hover:not(:disabled) {
+    background: #fff0f2;
+
+    border-color: #f2c9d1;
+
+    color: #be3049;
+}
+
+.floating-debug-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 25px;
+    height: 25px;
+
+    padding: 0;
+    margin-left: 2px;
+
+    border: 0;
+    border-radius: 6px;
+
+    background: transparent;
+
+    color: #8993a2;
+
+    font-size: 19px;
+    font-weight: 400;
+}
+
+.floating-debug-close:hover {
+    background: #f0f2f6;
+    color: #394353;
+}
+
+.floating-debugger button:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+/* =========================================================
+   NOTEBOOK WORKSPACE LAYOUT
+========================================================= */
+
+/*
+ * Both sidebars are collapsed by default.
+ *
+ * Their visibility is managed by app.js using:
+ *
+ * .show-outline
+ * .show-inspector
+ */
+
+.layout {
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr);
+
+    min-height: calc(100vh - 60px);
+}
+
+.layout.show-outline {
+    grid-template-columns:
+        205px minmax(0, 1fr);
+}
+
+.layout.show-inspector {
+    grid-template-columns:
+        minmax(0, 1fr) 280px;
+}
+
+.layout.show-outline.show-inspector {
+    grid-template-columns:
+        205px minmax(0, 1fr) 280px;
+}
+
+.layout.show-outline .files,
+.layout.show-inspector .inspector {
+    display: block;
+}
+
+/* =========================================================
+   SIDEBARS
+========================================================= */
+
+aside {
+    background: #ffffff;
+    padding: 20px 14px;
+}
+
+aside.files {
+    border-right: 1px solid var(--edge);
+}
+
+aside.inspector {
+    border-left: 1px solid var(--edge);
+    padding: 0;
+}
+
+aside h3 {
+    font-size: 10px;
+    font-weight: 700;
+
+    color: #919aaa;
+
+    letter-spacing: 1.3px;
+
+    margin: 12px 6px;
+}
+
+.files .item {
+    padding: 8px 9px;
+
+    background: var(--lightblue);
+
+    border-radius: 6px;
+
+    color: #345ea7;
+    font-size: 12px;
+
+    overflow-wrap: anywhere;
+}
+
+.divider {
+    height: 1px;
+
+    background: var(--edge);
+
+    margin: 20px 0;
+}
+
+.files p {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 4px 6px;
+
+    color: #424d5d;
+
+    font-size: 12px;
+}
+
+.files p span {
+    color: #929bad;
+}
+
+.outline-item {
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 7px 8px;
+
+    border-radius: 6px;
+
+    cursor: pointer;
+
+    color: #637085;
+
+    overflow: hidden;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.outline-item:hover {
+    background: #f2f5fb;
+}
+
+.outline-item small {
+    font-size: 10px;
+    color: #abb5c3;
+}
+
+/* =========================================================
+   MAIN NOTEBOOK EDITOR
+========================================================= */
+
+.notebook {
+    width: 100%;
+    max-width: none;
+
+    min-width: 0;
+
+    margin: 0;
+
+    padding:
+        26px
+        clamp(16px, 3vw, 54px)
+        84px;
+}
+
+.notebook-title h1 {
+    margin: 0;
+
+    font-size: 25px;
+    font-weight: 670;
+
+    letter-spacing: -0.7px;
+}
+
+.notebook-title p {
+    color: var(--muted);
+
+    margin: 8px 0 22px;
+}
+
+/* =========================================================
+   NOTEBOOK CELLS
+========================================================= */
+
+.cell {
+    background: var(--paper);
+
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+
+    margin: 16px 0;
+
+    box-shadow:
+        0 2px 9px rgba(21, 38, 69, 0.03);
+
+    overflow: hidden;
+}
+
+.cell:focus-within {
+    border-color: #a4bff6;
+
+    box-shadow:
+        0 0 0 3px #e9f1ff;
+}
+
+.cell.running {
+    border-color: #8aa9f8;
+}
+
+/*
+ * This class is applied to the cell containing
+ * the debugger's current execution location.
+ */
+
+.cell.is-debug-current {
+    border-color: var(--debug-cell-border);
+
+    box-shadow:
+        0 0 0 1px rgba(225, 29, 72, 0.09),
+        0 2px 12px rgba(225, 29, 72, 0.04);
+}
+
+/* =========================================================
+   CELL TOOLBAR
+========================================================= */
+
+.cellbar {
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    min-height: 42px;
+
+    padding: 6px 11px;
+
+    flex-wrap: wrap;
+
+    background: #fafbfd;
+
+    border-bottom: 1px solid var(--edge);
+}
+
+.cellbar button {
+    font-size: 12px;
+
+    padding: 5px 8px;
+}
+
+.cellbar .run {
+    background: var(--lightblue);
+
+    color: #255cad;
+
+    border-color: #d5e2fc;
+}
+
+.cellbar .debug {
+    background: #f0edff;
+
+    color: #6352c1;
+
+    border-color: #ded5ff;
+}
+
+.celltype {
+    font-size: 11px;
+    font-weight: 700;
+
+    color: #858f9e;
+
+    padding: 0 9px 0 2px;
+
+    letter-spacing: 0.5px;
+}
+
+.cell-count {
+    font-size: 11px;
+    color: #8f99a7;
+}
+
+.spacer {
+    flex: 1;
+}
+
+/* =========================================================
+   CELL EDITOR CONTAINER
+========================================================= */
+
+.cell-editor {
+    display: flex;
+
+    padding: 10px 0;
+
+    background: #ffffff;
+
+    min-height: 75px;
+    min-width: 0;
+}
+
+.cell.markdown .cell-editor {
+    background: #fcfdff;
+}
+
+.cell.raw .cell-editor {
+    background: #fdfcf9;
+}
+
+/* =========================================================
+   LINE-NUMBER GUTTER
+========================================================= */
+
+/*
+ * Gutter structure created by app.js:
+ *
+ * .gutter.nb-gutter
+ *   .nb-gutter-row
+ *     .nb-breakpoint-marker
+ *     .nb-line-number
+ *
+ * The marker and number are separate elements.
+ */
+
+.gutter,
+.nb-gutter {
+    width: var(--gutter-width);
+    min-width: var(--gutter-width);
+
+    flex-shrink: 0;
+
+    padding:
+        var(--code-padding-top)
+        5px
+        2px
+        5px;
+
+    border-right: 1px solid #eef0f4;
+
+    color: #abb6c5;
+
+    user-select: none;
+
+    font:
+        12px / var(--code-line-height)
+        ui-monospace,
+        "SFMono-Regular",
+        Menlo,
+        monospace;
+}
+
+.nb-gutter-row {
+    position: relative;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+
+    width: 100%;
+    height: var(--code-line-height);
+
+    padding: 0 5px 0 18px;
+
+    border-radius: 3px;
+
+    cursor: pointer;
+
+    outline-offset: -2px;
+}
+
+.nb-gutter-row:hover {
+    background: rgba(39, 105, 223, 0.05);
+}
+
+.nb-gutter-row:focus-visible {
+    outline: 2px solid var(--blue);
+}
+
+.nb-line-number {
+    position: relative;
+    z-index: 1;
+
+    display: block;
+
+    color: #9aa9bd;
+
+    font-size: 12px;
+    font-weight: 400;
+    line-height: var(--code-line-height);
+
+    text-align: right;
+
+    white-space: nowrap;
+}
+
+.nb-gutter-row:hover .nb-line-number {
+    color: var(--blue);
+}
+
+/* =========================================================
+   BREAKPOINT MARKER
+========================================================= */
+
+/*
+ * Marker is positioned to the left of the number.
+ *
+ * It never replaces, hides, or overlaps the line number.
+ */
+
+.nb-breakpoint-marker {
+    position: absolute;
+
+    left: 3px;
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    width: 8px;
+    height: 8px;
+
+    background: var(--danger);
+
+    border-radius: 50%;
+
+    pointer-events: none;
+
+    z-index: 2;
+
+    box-shadow:
+        0 0 0 1px rgba(211, 55, 85, 0.08);
+}
+
+.nb-gutter-row.is-current {
+    background: var(--debug-line);
+}
+
+.nb-gutter-row.is-current .nb-line-number {
+    color: #af1233;
+    font-weight: 800;
+}
+
+.nb-gutter-row.is-current
+.nb-breakpoint-marker {
+    background: #c91f44;
+}
+
+/* =========================================================
+   CODE EDITOR WRAPPER
+========================================================= */
+
+/*
+ * The wrapper contains two layers:
+ *
+ * 1. Highlight overlay (behind)
+ * 2. Editable textarea (in front)
+ *
+ * The overlay does not receive pointer events.
+ */
+
+.nb-editor-wrap {
+    position: relative;
+
+    display: block;
+
+    flex: 1 1 0%;
+    min-width: 0;
+
+    isolation: isolate;
+
+    background: transparent;
+}
+
+/* =========================================================
+   CURRENT EXECUTION-LINE OVERLAY
+========================================================= */
+
+/*
+ * IMPORTANT:
+ *
+ * The highlight must live behind the textarea.
+ *
+ * This avoids changing the text's background, selection,
+ * cursor behaviour, or ability to type.
+ *
+ * app.js sets .is-current on the line reported by
+ * server.py through debugLocation.
+ */
+
+.nb-highlight-overlay {
+    position: absolute;
+
+    top: var(--code-padding-top);
+    right: 0;
+    bottom: var(--code-padding-top);
+    left: 0;
+
+    overflow: hidden;
+
+    pointer-events: none;
+
+    z-index: 0;
+
+    scrollbar-width: none;
+}
+
+.nb-highlight-overlay::-webkit-scrollbar {
+    display: none;
+}
+
+.nb-execution-row {
+    position: relative;
+
+    display: block;
+
+    width: 100%;
+    height: var(--code-line-height);
+    min-height: var(--code-line-height);
+
+    background: transparent;
+
+    border-left: 3px solid transparent;
+
+    pointer-events: none;
+}
+
+.nb-execution-row.is-current {
+    background: var(--debug-line);
+
+    border-left-color: var(--debug-line-border);
+}
+
+/* =========================================================
+   PYTHON CODE TEXTAREA
+========================================================= */
+
+.code,
+.nb-code-editor {
+    position: relative;
+
+    display: block;
+
+    z-index: 1;
+
+    width: 100%;
+    min-width: 0;
+
+    min-height: 55px;
+
+    margin: 0;
+
+    padding:
+        var(--code-padding-top)
+        14px;
+
+    border: 0;
+
+    border-radius: 0;
+
+    resize: vertical;
+
+    outline: none;
+
+    background: transparent;
+
+    color: #263247;
+
+    font:
+        12.5px / var(--code-line-height)
+        ui-monospace,
+        "SFMono-Regular",
+        Menlo,
+        monospace;
+
+    letter-spacing: normal;
+
+    white-space: pre;
+
+    overflow: auto;
+
+    overflow-wrap: normal;
+
+    tab-size: 4;
+
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.nb-code-editor:focus,
+.nb-code-editor:focus-visible {
+    outline: none;
+}
+
+.nb-code-editor::selection {
+    background: rgba(39, 105, 223, 0.22);
+}
+
+/*
+ * The current execution line remains visible
+ * without interfering with normal text selection.
+ */
+
+.cell.is-debug-current .nb-code-editor {
+    background: transparent;
+}
+
+/* =========================================================
+   EXECUTION OUTPUT
+========================================================= */
+
+.cell-output {
+    border-top: 1px solid #eef0f4;
+
+    padding: 11px 15px 14px;
+
+    background: #fbfcff;
+
+    font-family:
+        ui-monospace,
+        Menlo,
+        monospace;
+
+    font-size: 12px;
+
+    overflow-x: auto;
+}
+
+.cell-output:empty {
+    display: none;
+}
+
+.out-stream,
+.out-error {
+    white-space: pre-wrap;
+
+    overflow-wrap: anywhere;
+
+    margin: 0 0 6px;
+}
+
+.out-error {
+    color: #ba3d45;
+}
+
+.cell-output img {
+    max-width: 100%;
+    height: auto;
+}
+
+.cell-output iframe {
+    width: 100%;
+
+    min-height: 200px;
+
+    border: 0;
+
+    background: #ffffff;
+}
+
+.output-row {
+    margin-bottom: 8px;
+}
+
+.output-row:last-child {
+    margin: 0;
+}
+
+.cell-output table {
+    font: 12px sans-serif;
+}
+
+/* =========================================================
+   EXECUTION ANIMATION
+========================================================= */
+
+.running-pip {
+    animation: blink 1s infinite;
+
+    color: var(--blue);
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.25;
+    }
+}
+
+/* =========================================================
+   ADD CELL BUTTONS
+========================================================= */
+
+.addrow {
+    display: flex;
+    justify-content: center;
+
+    gap: 10px;
+
+    margin: 22px 0;
+}
+
+.addrow button {
+    border-style: dashed;
+
+    background: #fbfcff;
+
+    color: #6b7891;
+}
+
+/* =========================================================
+   NOTEBOOK FOOTER
+========================================================= */
+
+.footer {
+    text-align: center;
+
+    color: #b0b7c2;
+
+    margin-top: 40px;
+
+    font-size: 11px;
+}
+
+/* =========================================================
+   DEBUGGER INSPECTOR
+========================================================= */
+
+.inspect-head {
+    height: 48px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 14px;
+
+    border-bottom: 1px solid var(--edge);
+
+    color: #566376;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    letter-spacing: 1px;
+}
+
+.inspect-head span {
+    color: #a1a9b7;
+
+    font-size: 11px;
+    letter-spacing: 0;
+}
+
+.debugbar {
+    display: flex;
+    flex-wrap: wrap;
+
+    gap: 5px;
+
+    padding: 12px;
+}
+
+.debugbar button {
+    padding: 5px 7px;
+
+    font-size: 11px;
+}
+
+/* =========================================================
+   INSPECTOR SECTIONS
+========================================================= */
+
+.inspector-sub {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 11px 14px;
+
+    background: #f7f9fc;
+
+    border-top: 1px solid var(--edge);
+    border-bottom: 1px solid var(--edge);
+
+    color: #808c9d;
+
+    font-size: 10px;
+    font-weight: 700;
+
+    letter-spacing: 1.3px;
+}
+
+.inspector-sub button {
+    padding: 0 6px;
+
+    border: 0;
+
+    background: transparent;
+}
+
+.hint {
+    color: #97a0b0;
+
+    font-size: 12px;
+    line-height: 1.6;
+
+    padding: 2px 14px;
+}
+
+/* =========================================================
+   BREAKPOINT VERIFICATION
+========================================================= */
+
+.breakpoint-status {
+    padding: 0 14px 10px;
+
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+.bp-ok {
+    color: #187a4c;
+}
+
+.bp-fail {
+    color: #b13d48;
+}
+
+/* =========================================================
+   DEBUGGER VARIABLES
+========================================================= */
+
+.variables {
+    padding: 14px;
+
+    color: #6b798a;
+
+    font-size: 12px;
+
+    word-break: break-word;
+}
+
+.var-row {
+    display: flex;
+    flex-direction: column;
+
+    gap: 4px;
+
+    padding: 5px 0;
+
+    border-bottom: 1px solid #eef1f5;
+}
+
+.var-row strong {
+    color: #4f6193;
+}
+
+/* =========================================================
+   DEBUGGER EVENTS
+========================================================= */
+
+.events {
+    margin: 0;
+    padding: 14px;
+
+    color: #67758e;
+
+    font:
+        11px / 1.5
+        ui-monospace,
+        Menlo,
+        monospace;
+
+    white-space: pre-wrap;
+
+    word-break: break-word;
+}
+
+/* =========================================================
+   MARKDOWN RENDERING
+========================================================= */
+
+.md-header {
+    margin: 15px 0 8px;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
+
+    font-weight: 700;
+
+    letter-spacing: -0.3px;
+}
+
+.md-paragraph {
+    margin: 6px 0;
+
+    font:
+        13px / 1.7
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
+}
+
+.md-bullet {
+    padding-left: 14px;
+
+    font:
+        13px / 1.8
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
+}
+
+.md-spacer {
+    height: 7px;
+}
+
+.markdown-code {
+    padding: 12px;
+
+    background: #f3f5f9;
+
+    border-radius: 6px;
+
+    white-space: pre-wrap;
+}
+
+/* =========================================================
+   TOAST NOTIFICATIONS
+========================================================= */
+
+#toast {
+    position: fixed;
+
+    bottom: 20px;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    display: none;
+
+    max-width: 75vw;
+
+    padding: 12px 18px;
+
+    background: #202e43;
+
+    color: #ffffff;
+
+    border-radius: 8px;
+
+    box-shadow:
+        0 4px 30px rgba(0, 0, 0, 0.13);
+
+    overflow-wrap: anywhere;
+
+    z-index: 200;
+}
+
+#toast.visible {
+    display: block;
+}
+
+/* =========================================================
+   RESPONSIVE — SMALLER WINDOWS
+========================================================= */
+
+@media (max-width: 1100px) {
+
+    header.top {
+        height: auto;
+        min-height: 60px;
+
+        flex-wrap: wrap;
+
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .layout.show-outline,
+    .layout.show-inspector,
+    .layout.show-outline.show-inspector {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .layout .files,
+    .layout .inspector {
+        position: fixed;
+
+        top: 60px;
+        bottom: 0;
+
+        z-index: 40;
+
+        overflow-y: auto;
+
+        box-shadow:
+            0 10px 26px rgba(35, 54, 74, 0.15);
+    }
+
+    .layout.show-outline .files {
+        left: 0;
+
+        width: min(275px, 84vw);
+    }
+
+    .layout.show-inspector .inspector {
+        right: 0;
+
+        width: min(320px, 84vw);
+
+        background: #ffffff;
+    }
+
+    .notebook {
+        padding:
+            22px
+            clamp(14px, 3vw, 30px)
+            70px;
+    }
+
+    .floating-debugger {
+        top: 90px;
+    }
+}
+
+/* =========================================================
+   RESPONSIVE — NARROW WINDOWS
+========================================================= */
+
+@media (max-width: 700px) {
+
+    .top .brand {
+        max-width: 100%;
+    }
+
+    .top .subtitle {
+        display: none;
+    }
+
+    .top .panel-controls {
+        order: 2;
+    }
+
+    .top .tools {
+        gap: 5px;
+
+        order: 3;
+
+        justify-content: flex-start;
+    }
+
+    .top .tools button {
+        padding: 5px 7px;
+    }
+
+    .layout {
+        display: grid;
+    }
+
+    .notebook {
+        padding: 18px 14px;
+    }
+
+    .floating-debugger {
+        top: 110px;
+
+        gap: 5px;
+
+        padding: 5px 6px;
+
+        border-radius: 9px;
+
+        max-width: calc(100vw - 16px);
+    }
+
+    .floating-debugger-status {
+        gap: 4px;
+
+        padding-right: 5px;
+    }
+
+    .floating-debug-status {
+        max-width: 90px;
+
+        font-size: 10px;
+    }
+
+    .floating-debugger-actions {
+        gap: 1px;
+    }
+
+    .floating-debug-button {
+        width: 27px;
+        height: 29px;
+
+        font-size: 13px;
+    }
+
+    .floating-debug-close {
+        width: 22px;
+        height: 22px;
+
+        font-size: 17px;
+    }
+
+    .gutter,
+    .nb-gutter {
+        --gutter-width: 50px;
+    }
+
+    .nb-gutter-row {
+        padding-right: 3px;
+    }
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
