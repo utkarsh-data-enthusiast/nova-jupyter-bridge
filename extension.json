@@ -2,8 +2,8 @@
   "identifier": "dev.patriotever.novajupyterbridge",
   "name": "Nova Jupyter Bridge",
   "organization": "PatriotEver Lab",
-  "description": "Privacy-friendly Jupyter integration for Nova. Choose between the custom Notebook Studio and official JupyterLab. Features include individual-cell execution, Python debugging, verified breakpoints, execution-line highlighting, kernel management, and standard Jupyter notebook support.",
-  "version": "2.2.0",
+  "description": "Privacy-focused Jupyter integration for Nova. Open custom Notebook Studio or official JupyterLab in your default browser or Nova Preview. Features include per-cell Python execution and debugging, breakpoints, debugger controls, local MySQL SQL cells, kernel management, and standard Jupyter notebook support.",
+  "version": "2.3.0",
   "license": "MIT",
   "repository": "https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge",
   "bugs": "https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge/issues",
@@ -26,21 +26,21 @@
       "key": "jupyterbridge.python",
       "type": "string",
       "title": "Python executable",
-      "description": "Python executable used by both Notebook Studio and JupyterLab. Select your existing Python environment containing jupyter_client, ipykernel, and JupyterLab. You can specify the full path to the Python executable. No additional Python environment is created.",
+      "description": "Python executable used by Notebook Studio and JupyterLab. Select an existing Python environment containing jupyter_client, ipykernel, and JupyterLab. You may specify its full executable path. No additional Python environment is created.",
       "default": "python3"
     },
     {
       "key": "jupyterbridge.kernelOverride",
       "type": "string",
       "title": "Notebook Studio kernel override",
-      "description": "Optional kernel override for Notebook Studio. Leave empty to use the kernel specified by the notebook. For Python debugging, select a kernel that supports the Jupyter debugger protocol.",
+      "description": "Optional kernel override for Notebook Studio. Leave empty to use the notebook's kernel. For Python debugging, select a kernel supporting the Jupyter debugger protocol.",
       "default": ""
     },
     {
       "key": "jupyterbridge.autoPreview",
       "type": "boolean",
       "title": "Attempt automatic Nova Preview navigation",
-      "description": "When enabled, attempts to open Notebook Studio or JupyterLab inside Nova Preview using macOS System Events and Accessibility automation. If automatic navigation is unavailable, the private local URL is copied to the clipboard and manual instructions are displayed. macOS permissions may be required.",
+      "description": "When Open in Nova Preview is selected, attempt to navigate Nova Preview automatically using macOS System Events and Accessibility automation. If automatic navigation fails, the private local URL is copied and manual instructions are displayed. The separate Open in Browser option uses the default browser.",
       "default": true
     }
   ],

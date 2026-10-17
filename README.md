@@ -1,17 +1,17 @@
 # Nova Jupyter Bridge
 
-**A free, open-source Jupyter notebook integration for Panic Nova.**
+**Privacy-focused Jupyter notebook integration for Panic Nova.**
 
 Developed by **PatriotEver Lab**.
 
 Nova Jupyter Bridge brings interactive Jupyter notebooks into Nova through two independent interfaces:
 
-- **Jupyter Notebook Studio** — a custom notebook editor with Python execution and debugging.
-- **JupyterLab** — the official JupyterLab interface, accessible through Nova Preview.
+- **Jupyter Notebook Studio** — a custom notebook interface with Python execution, debugging, and local MySQL SQL cells.
+- **JupyterLab** — the official JupyterLab interface, launched directly from Nova.
 
-The extension is designed for local development, privacy, and integration with an existing Python environment.
+Both interfaces can be opened in your default web browser or through Nova Preview.
 
-**Version:** 2.2.0  
+**Version:** 2.3.0  
 **License:** MIT  
 **Platform:** macOS  
 **Editor:** Panic Nova
@@ -22,74 +22,165 @@ The extension is designed for local development, privacy, and integration with a
 
 ### Jupyter Notebook Studio
 
-Notebook Studio provides a custom interface for working with `.ipynb` notebooks.
+Notebook Studio provides a local, interactive interface for working with `.ipynb` notebooks.
 
-Features include:
+#### Python execution
 
-- Individual code-cell execution
+- Individual Python code-cell execution
+- Run All Cells
+- Cell output display
+- Notebook saving
+- Kernel selection
+- Kernel interruption
+- Kernel restart
+- Standard Jupyter notebook support
+
+#### Python debugging
+
 - Individual code-cell debugging
-- Python breakpoints
+- Breakpoint creation
 - Breakpoint verification
-- Automatic first-statement breakpoints
+- Execution-line highlighting
+- Floating debugger toolbar
+- Variable inspection
+- Breakpoint-management controls
 - Continue execution
-- Pause debugging
+- Pause
 - Step Over
 - Step Into
 - Step Out
 - Stop debugging
-- Current execution-line highlighting
-- Variable inspection
-- Floating debugger toolbar
-- Kernel selection
-- Kernel interruption
-- Kernel restart
-- Run All Cells
-- Clear Outputs
-- Notebook saving
+
+Python debugging requires a compatible Jupyter kernel.
+
+Some advanced debugging scenarios, particularly cross-cell debugging and source mapping, require further testing.
+
+#### Notebook interface
+
+- Python code cells
+- SQL cells
 - Markdown cells
 - Raw cells
-- Notebook cell management
-- Collapsible notebook sidebar
-- Collapsible debugger sidebar
-- Full-width notebook editor
+- Add cells above or below existing cells
+- Move cells
+- Delete cells
+- Notebook sidebar
+- Debugger sidebar
+- Floating debugger controls
+- Clear Outputs
+- Save notebooks as `.ipynb` files
 
-Notebook Studio saves notebooks in the standard `.ipynb` format.
+### Local MySQL SQL Integration
 
-**Development status:** Some advanced debugger interactions, including cross-cell source mapping, execution-line highlighting, and recovery from interrupted sessions, may require further refinement.
-
-### Official JupyterLab
-
-Nova Jupyter Bridge can also start the official JupyterLab application.
+Version 2.3.0 adds SQL execution inside Notebook Studio.
 
 Features include:
 
-- Official JupyterLab interface
-- Native notebook execution
-- Native notebook debugging with compatible kernels
-- Markdown editing
+- SQL cells alongside Python cells
+- SQL cell insertion controls
+- Local MySQL query execution
+- SQL results displayed in the notebook interface
+- SQL execution cancellation
+- Integration with an existing MySQL installation
+- Use of MySQL client login-path configuration
+
+The SQL executor uses the local MySQL command-line client.
+
+The current implementation is configured around the MySQL client at:
+
+```text
+/usr/local/mysql/bin/mysql
+```
+
+The executor uses a MySQL login path named:
+
+```text
+nova
+```
+
+Users may need to adjust the local MySQL configuration or source code for their own installations.
+
+**Important:** SQL execution is not equivalent to a full MySQL debugger.
+
+The extension does not currently provide complete SQL statement-level debugging with breakpoints, step-through execution, and stored-routine variable inspection.
+
+The SQL backend requires additional testing across different MySQL installations and configurations.
+
+---
+
+## Official JupyterLab
+
+Nova Jupyter Bridge also supports the official JupyterLab interface.
+
+Features include:
+
+- Launching JupyterLab directly from Nova
+- Opening existing `.ipynb` notebooks
+- Native JupyterLab notebook editing
+- Native JupyterLab execution
+- JupyterLab debugging with compatible kernels
 - Rich notebook outputs
-- Variable inspection through supported Jupyter features
 - Notebook file management
-- Access through Nova Preview
+- Browser and Nova Preview opening options
 
 JupyterLab must already be installed in the configured Python environment.
 
-The extension does not download or install JupyterLab automatically.
+The extension does not automatically install it.
 
-### Nova Task Integration
+**Note:** Notebook Studio's custom floating debugger toolbar is separate from JupyterLab's native debugging interface.
 
-The extension adds two tasks to Nova:
+---
+
+## Open in Browser or Nova Preview
+
+Version 2.3.0 introduces an opening dialog for both Notebook Studio and JupyterLab.
+
+When an interface is ready, choose:
+
+### Open in Browser
+
+Opens the authenticated notebook in your default web browser.
+
+If Safari is configured as your default browser, the notebook opens in Safari.
+
+### Open in Nova Preview
+
+Attempts to open the notebook inside Nova Preview.
+
+If automatic Preview navigation is unavailable, the extension copies the authenticated local URL and provides manual instructions.
+
+### Cancel
+
+Dismisses the opening dialog without shutting down the notebook server.
+
+### Automatic Preview navigation
+
+Automatic navigation uses optional macOS System Events and Accessibility automation.
+
+Depending on your macOS permissions and Nova version, automatic navigation may not succeed.
+
+You can still open the notebook by pasting the copied URL into Nova Preview.
+
+---
+
+## Nova Task Integration
+
+The extension provides two independent Nova tasks:
 
 1. **Jupyter Notebook Studio**
 2. **JupyterLab**
 
-Select the desired task from Nova's task menu and use the Run command.
+Both tasks support Nova's Run and Build actions.
 
-Both tasks also expose Build actions.
+A separate build step is not required before launching a notebook.
 
-### Privacy and Security
+The extension also provides commands through Nova's Extensions menu.
 
-Nova Jupyter Bridge is designed to minimize unnecessary data collection and external dependencies.
+---
+
+## Privacy and Security
+
+Nova Jupyter Bridge is designed for local development and minimal data collection.
 
 The extension:
 
@@ -97,18 +188,32 @@ The extension:
 - Contains no analytics integration
 - Contains no intentional telemetry
 - Requires no extension-specific online account
-- Uses local notebook servers
-- Binds its managed notebook servers to `127.0.0.1`
-- Uses authentication for local notebook interfaces
-- Does not automatically upload notebook contents to a remote service
+- Runs its managed notebook servers locally
+- Restricts managed notebook servers to `127.0.0.1`
+- Uses authentication for local notebook access
+- Does not automatically upload notebook contents to an extension-operated service
 - Does not automatically install Python packages
 - Does not automatically create Python environments
+- Does not embed MySQL passwords in its source code
+- Is distributed under the MIT License
 
-Notebook Studio uses local authentication and HTTP request restrictions.
+### Authentication
 
-JupyterLab uses the authentication features provided by Jupyter Server.
+Notebook Studio and JupyterLab use authenticated local URLs.
 
-**Security note:** The extension has not undergone an independent security audit. Code executed in a notebook has the privileges of the selected Python environment. Installing additional Jupyter extensions or packages may introduce their own dependencies and network behavior.
+These URLs must be treated as sensitive because anyone who obtains a valid URL may be able to access the corresponding local notebook server.
+
+The extension may copy an authenticated URL to the macOS clipboard for opening in Nova Preview.
+
+Avoid sharing authentication tokens, private notebook URLs, passwords, or confidential notebook contents.
+
+### Security limitations
+
+This extension has not undergone an independent third-party security audit.
+
+Python code and SQL queries execute with the privileges available to their respective local environments and database accounts.
+
+Additional Jupyter packages, kernels, and extensions may introduce their own security or network behavior.
 
 ---
 
@@ -116,21 +221,28 @@ JupyterLab uses the authentication features provided by Jupyter Server.
 
 - macOS
 - Panic Nova
-- Python 3.10 or later recommended
+- An existing Python installation
 - `jupyter_client`
 - `ipykernel`
-- JupyterLab, for the official JupyterLab task
-- A Python kernel supporting the Jupyter debugger protocol, for debugging features
+- JupyterLab for the official JupyterLab interface
+- A compatible debugging kernel for Python debugging
 
-A modern `ipykernel` installation is recommended.
+For SQL functionality:
 
-The Python interpreter used to launch Notebook Studio must have access to the required Jupyter packages.
+- MySQL Server
+- MySQL command-line client
+- A configured MySQL login path
+- Appropriate database permissions
+
+Dependencies must be installed separately.
+
+Nova Jupyter Bridge does not automatically install packages or create environments.
 
 ---
 
 ## Installation
 
-### Install from Nova's Extension Library
+### Nova Extension Library
 
 Once the extension is accepted into Nova's Extension Library:
 
@@ -141,72 +253,76 @@ Once the extension is accepted into Nova's Extension Library:
 5. Open your coding project.
 6. Configure the Python executable if necessary.
 
-### Install manually
+### Manual installation
 
-1. Download the extension from GitHub.
-2. Locate `Nova Jupyter Bridge.novaextension`.
-3. Open the extension bundle with Nova.
-4. Follow Nova's installation instructions.
-5. Open your coding project.
+The source code is available on GitHub:
+
+https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge
+
+Download the extension bundle and install it through Nova.
 
 ### Development installation
 
-To test the extension directly from its source:
+To test the source directly:
 
-1. Open `Nova Jupyter Bridge.novaextension` as a project in Nova.
+1. Open the `.novaextension` development project in Nova.
 2. Select **Extensions → Activate Project as Extension**.
 3. Open your coding project.
-4. Select the required Jupyter task.
+4. Select the Notebook Studio or JupyterLab task.
 
 ---
 
 ## Configuration
 
-Open your project's Nova extension settings.
+Open your project's Nova extension settings and select **Nova Jupyter Bridge**.
 
 ### Python executable
 
-Setting:
+Configuration key:
 
-`jupyterbridge.python`
+```text
+jupyterbridge.python
+```
 
-Specify the Python executable containing your existing Jupyter installation.
+Specify an existing Python executable containing the required Jupyter packages.
 
 Example:
 
 ```text
-/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12
+/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14
 ```
 
-This is only an example. Use the actual Python executable installed on your Mac.
+This path is an example and may differ between installations.
 
-The same configured Python executable is used to start Notebook Studio and JupyterLab.
+The configured Python executable launches both Notebook Studio and JupyterLab.
 
-### Kernel override
+The notebook's execution kernel can use another registered Python environment.
 
-Setting:
+For example, a JupyterLab server may run under one Python installation while a notebook kernel uses Python 3.12 for compatible machine-learning packages.
 
-`jupyterbridge.kernelOverride`
+### Notebook Studio kernel override
 
-Optionally specify an installed Jupyter kernel name.
+Configuration key:
 
-Leave this setting empty to use the kernel specified by the notebook.
+```text
+jupyterbridge.kernelOverride
+```
 
-### Automatic Nova Preview
+Optionally specify an installed Jupyter kernel.
 
-Setting:
+Leave this setting empty to use the notebook's configured kernel.
 
-`jupyterbridge.autoPreview`
+### Automatic Nova Preview navigation
 
-When enabled, Nova Jupyter Bridge attempts to open the selected notebook interface inside Nova Preview.
+Configuration key:
 
-Automatic Preview navigation uses optional macOS automation.
+```text
+jupyterbridge.autoPreview
+```
 
-Depending on your macOS settings, you may need to grant Nova permission to control System Events or use Accessibility features.
+When enabled, the extension attempts automatic navigation after you select **Open in Nova Preview**.
 
-If automatic navigation fails, the extension provides a manual fallback using a local URL copied to the clipboard.
-
-**Important:** Automatic Preview navigation is best-effort and may vary between Nova versions.
+When disabled, you can still open the notebook manually using the authenticated URL.
 
 ---
 
@@ -217,76 +333,57 @@ If automatic navigation fails, the extension provides a manual fallback using a 
 1. Open a Nova project.
 2. Open or select an `.ipynb` notebook.
 3. Select the **Jupyter Notebook Studio** task.
-4. Click Nova's Run button.
-5. Open the notebook in Nova Preview.
+4. Click Run.
+5. Choose **Open in Browser** or **Open in Nova Preview**.
 
 ### Run Python code
 
-Each code cell provides a **Run** button.
+Each Python code cell has a Run button.
 
 Click Run to execute the selected cell.
 
-Use **Run All** to execute the notebook's code cells sequentially.
+Use Run All to execute the notebook's code cells.
 
 ### Debug Python code
 
 1. Open Notebook Studio.
 2. Select a Python code cell.
-3. Click beside a line number to set a breakpoint.
-4. Click the cell's **Debug** button.
-5. Use the floating debugger controls to navigate execution.
+3. Set a breakpoint beside the required line.
+4. Click the cell's Debug button.
+5. Use the floating debugger toolbar.
 
-Supported debugger commands include:
+Available debugging operations include Continue, Pause, Step Over, Step Into, Step Out, and Stop.
 
-| Control | Action |
-|---|---|
-| ▶ | Continue |
-| ⏸ | Pause |
-| ↷ | Step Over |
-| ↓ | Step Into |
-| ↑ | Step Out |
-| ■ | Stop |
+The exact debugging capabilities depend on the selected kernel.
 
-The debugger requires a compatible Jupyter kernel.
+### Execute SQL
 
-Advanced debugging behavior depends on the kernel's debugger implementation.
+1. Open Notebook Studio.
+2. Add an SQL cell.
+3. Enter a MySQL query.
+4. Run the SQL cell.
+5. Inspect the returned output.
 
-### Clear Outputs
+SQL execution requires a working MySQL client and login-path configuration.
 
-Click **Clear Outputs** to remove saved execution results from notebook code cells.
+### Open JupyterLab
 
-The extension updates the notebook file to preserve the cleared state.
-
-### Restart the kernel
-
-Click **Restart** to restart the selected Python kernel.
-
-Restarting removes in-memory Python variables.
-
----
-
-## Using JupyterLab
-
-1. Open your Nova project.
+1. Open a Nova project.
 2. Open or select an `.ipynb` notebook.
 3. Select the **JupyterLab** task.
-4. Click Nova's Run button.
-5. Open the JupyterLab interface through Nova Preview.
-
-The extension attempts to launch JupyterLab using your configured Python executable.
-
-It does not automatically install missing dependencies.
+4. Click Run.
+5. Choose the desired opening option.
 
 Notebook Studio and JupyterLab can access the same notebook files, but they do not automatically share live kernel sessions.
 
-Avoid editing the same notebook simultaneously in both interfaces without saving and reloading appropriately.
+Avoid simultaneously editing the same notebook in both interfaces without coordinating saves and reloads.
 
 ---
 
 ## Project Structure
 
 ```text
-Nova Jupyter Bridge.novaextension/
+nova-jupyter-bridge.novaextension/
 │
 ├── Assets/
 │   ├── app.css
@@ -295,95 +392,106 @@ Nova Jupyter Bridge.novaextension/
 │
 ├── Scripts/
 │   ├── main.js
-│   └── server.py
+│   ├── mysql_executor.py
+│   ├── server.py
+│   └── server_core.py
 │
-├── extension.json
-├── extension.png
-├── extension@2x.png
+├── .gitignore
+├── CHANGELOG.md
 ├── LICENSE
 ├── README.md
-└── CHANGELOG.md
+├── extension.json
+├── extension.png
+└── extension@2x.png
 ```
 
-`CHANGELOG.md` records changes introduced in each release.
+### Source components
 
----
+**`Scripts/main.js`**
 
-## Privacy
+Registers Nova commands and tasks, launches the notebook interfaces, manages local JupyterLab processes, and provides browser/Preview opening options.
 
-The extension's source code is publicly available for inspection.
+**`Scripts/server.py`**
 
-Nova Jupyter Bridge does not intentionally collect or transmit usage analytics, advertising identifiers, or notebook contents to an extension-operated remote service.
+Provides the Notebook Studio server entry point and integration with additional backend functionality.
 
-The managed notebook interfaces communicate locally.
+**`Scripts/server_core.py`**
 
-Users remain responsible for evaluating any additional Python packages, Jupyter kernels, or extensions they install.
+Contains the core Notebook Studio server implementation.
+
+**`Scripts/mysql_executor.py`**
+
+Provides local MySQL execution support.
+
+**`Assets/app.js`**
+
+Implements the interactive Notebook Studio frontend.
+
+**`Assets/app.css`**
+
+Defines Notebook Studio styling.
+
+**`Assets/index.html`**
+
+Defines the Notebook Studio HTML entry point.
 
 ---
 
 ## Known Limitations
 
-- Automatic Nova Preview navigation may require macOS Automation and Accessibility permissions.
-- Notebook debugging requires a compatible kernel.
-- Some advanced debugger features may require additional improvements.
-- Notebook Studio and JupyterLab do not automatically share kernel sessions.
-- External Jupyter servers are not supported by the current task launcher.
-- The extension does not provide a native Nova SQL debugger.
+- Automatic Nova Preview navigation is dependent on macOS permissions and Nova's interface.
+- Advanced Python debugging requires additional testing.
+- SQL execution is not a complete SQL debugger.
+- MySQL client configuration may require manual setup.
+- Notebook Studio and JupyterLab do not share live kernel sessions automatically.
+- External Jupyter servers are not supported by the current launcher.
 - The extension does not automatically install dependencies.
-
-These limitations may be addressed or documented further in subsequent releases.
-
----
-
-## Development
-
-Contributions, bug reports, and suggestions are welcome.
-
-GitHub repository:
-
-https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge
-
-Bug reports:
-
-https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge/issues
-
-When reporting an issue, include:
-
-- macOS version
-- Nova version
-- Python version
-- JupyterLab version, if relevant
-- Steps to reproduce
-- Relevant error messages
-
-Do not include authentication tokens, passwords, private notebook contents, or other sensitive information in public bug reports.
+- Some SQL and debugger workflows require further end-to-end testing.
 
 ---
 
 ## Roadmap
 
-Planned improvements may include:
+Potential future improvements include:
 
+- Improved cross-cell Python debugging
 - More reliable debugger state management
-- Improved cross-cell debugging
-- Better execution-line tracking
-- Improved breakpoint behavior
-- Better kernel recovery
-- Additional Notebook Studio usability improvements
-- Expanded automated testing
+- Improved execution-line tracking
+- Expanded SQL functionality
+- Improved kernel recovery
+- Additional automated tests
+- Improved accessibility
 - Further privacy and security hardening
 
-Roadmap items are not guarantees of future functionality.
+Roadmap items are not guaranteed features.
+
+---
+
+## Development and Contributions
+
+Contributions, bug reports, and suggestions are welcome.
+
+**Repository:**
+
+https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge
+
+**Bug reports:**
+
+https://github.com/utkarsh-data-enthusiast/nova-jupyter-bridge/issues
+
+When reporting a bug, include the relevant Nova, macOS, Python, and JupyterLab versions, along with steps to reproduce.
+
+Do not include passwords, authentication tokens, private notebook URLs, or confidential notebook contents.
 
 ---
 
 ## License
 
-Nova Jupyter Bridge is licensed under the **MIT License**.
+Nova Jupyter Bridge is distributed under the **MIT License**.
 
 Copyright (c) 2026 PatriotEver Lab.
 
-See [LICENSE](LICENSE) for the complete license text.
+See [LICENSE](LICENSE) for the complete license.
 
 ---
 
