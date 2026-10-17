@@ -1,39 +1,12 @@
-/*
- * Nova Jupyter Bridge
- * Copyright (c) PatriotEver Lab
- * SPDX-License-Identifier: MIT
- *
- * Two independent Nova tasks:
- *
- * 1. Jupyter Notebook Studio
- * 2. JupyterLab
- *
- * Both support Nova Run and Build.
- *
- * Local execution only.
- * No analytics, tracking, advertising or external APIs.
- */
-
 'use strict';
-
-/* =========================================================
-   CONFIGURATION
-========================================================= */
 
 const CONFIG_PY = 'jupyterbridge.python';
 const CONFIG_KERNEL = 'jupyterbridge.kernelOverride';
 const CONFIG_AUTOPREVIEW = 'jupyterbridge.autoPreview';
 
 const TASK_IDENTIFIER = 'jupyterbridge.notebookStudioTasks';
-
 const STUDIO_COMMAND = 'jupyterbridge.openStudio';
 const LAB_COMMAND = 'jupyterbridge.openLab';
-
-/* =========================================================
-   PROCESS STATE
-========================================================= */
-
-// Custom Notebook Studio server.
 
 let studioProcess = null;
 let studioURL = null;
@@ -41,29 +14,19 @@ let studioNotebook = null;
 let studioReady = false;
 let studioOutput = '';
 
-// Official JupyterLab server.
-
 let labProcess = null;
 let labURL = null;
 let labNotebook = null;
 let labReady = false;
-
 let labPort = null;
 let labToken = null;
-
 let labOutput = '';
 let labStartupError = '';
-
-// Shared Preview automation.
+let labStartupTimer = null;
 
 let previewProcess = null;
-
 let lastNotebookPath = null;
 let taskAssistantDisposable = null;
-
-/* =========================================================
-   SETTINGS
-========================================================= */
 
 function python() {
     return (
@@ -104,10 +67,6 @@ function extensionScript(filename) {
     );
 }
 
-/* =========================================================
-   NOTEBOOK VALIDATION
-========================================================= */
-
 function isNotebook(path) {
     return (
         typeof path === 'string' &&
@@ -136,10 +95,6 @@ function currentNotebook() {
 
     return null;
 }
-
-/* =========================================================
-   NOTEBOOK SELECTION
-========================================================= */
 
 function selectNotebook(callback) {
     const current = currentNotebook();
@@ -180,7 +135,6 @@ function selectNotebook(callback) {
                     'Select an .ipynb notebook inside ' +
                     'the current Nova project.'
                 );
-
                 return;
             }
 
@@ -189,15 +143,6 @@ function selectNotebook(callback) {
         }
     );
 }
-
-/* =========================================================
-   SAFE LOCAL URL VALIDATION
-========================================================= */
-
-/*
- * Only authenticated loopback URLs created by our
- * local Notebook Studio or JupyterLab servers are accepted.
- */
 
 function validStudioURL(value) {
     if (typeof value !== 'string') {
@@ -242,10 +187,6 @@ function validLocalURL(value) {
     );
 }
 
-/* =========================================================
-   COPY PRIVATE AUTHENTICATED URL
-========================================================= */
-
 function copyPrivateURL(url) {
     if (!validLocalURL(url)) {
         return Promise.reject(
@@ -258,16 +199,10 @@ function copyPrivateURL(url) {
     return nova.clipboard.writeText(url);
 }
 
-/* =========================================================
-   NOVA PREVIEW FALLBACK
-========================================================= */
-
 function showManualPreviewInstructions(
     name,
     reason
 ) {
-    // Authentication tokens are never included in logs.
-
     console.warn(
         name +
         ': automatic Preview unavailable (' +
@@ -283,11 +218,8 @@ function showManualPreviewInstructions(
         'To open it in Nova Preview:\n\n' +
 
         '1. Open Nova Preview.\n' +
-
         '2. Focus the Preview address bar.\n' +
-
         '3. Paste the copied URL.\n' +
-
         '4. Press Return.\n\n' +
 
         'Automatic Preview navigation is optional ' +
@@ -295,198 +227,111 @@ function showManualPreviewInstructions(
     );
 }
 
-/* =========================================================
-   OPTIONAL AUTOMATIC NOVA PREVIEW
-========================================================= */
-
-/*
- * Nova does not provide a public extension API for
- * programmatically changing the Preview address bar.
- *
- * This optional AppleScript uses the existing Preview
- * shortcut and checks the accessibility role of the
- * focused control before pasting the private URL.
- *
- * If safe navigation is not possible, the user receives
- * manual instructions.
- */
-
 const PREVIEW_APPLESCRIPT = String.raw`
 on run
-
     tell application "Nova" to activate
-
     delay 0.25
 
     tell application "System Events"
-
         tell process "Nova"
-
             set frontmost to true
-
             keystroke "4" using {control down, command down}
-
             delay 0.7
 
             repeat with attemptNumber from 1 to 12
-
                 set addressFocused to false
 
                 try
-
                     keystroke "l" using {command down}
-
                     delay 0.12
-
                     set targetElement to focused UI element
-
                     set targetRole to role of targetElement as text
 
                     if targetRole is "AXTextField" or targetRole is "AXComboBox" or targetRole is "AXSearchField" or targetRole is "AXWebTextField" then
-
                         set targetSize to size of targetElement
-
                         set targetPosition to position of targetElement
-
                         set windowPosition to position of front window
 
                         if (item 1 of targetSize) > 240 and (item 2 of targetPosition) > ((item 2 of windowPosition) + 30) and (item 2 of targetPosition) < ((item 2 of windowPosition) + 220) then
-
                             set addressFocused to true
-
                         end if
-
                     end if
-
                 end try
 
                 if not addressFocused then
-
                     try
-
                         set windowPosition to position of front window
-
                         set candidates to entire contents of front window
 
                         repeat with candidate in candidates
-
                             try
-
                                 set candidateRole to role of candidate as text
 
                                 if candidateRole is "AXTextField" or candidateRole is "AXComboBox" or candidateRole is "AXSearchField" or candidateRole is "AXWebTextField" then
-
                                     set candidateSize to size of candidate
-
                                     set candidatePosition to position of candidate
 
                                     if (item 1 of candidateSize) > 240 and (item 2 of candidatePosition) > ((item 2 of windowPosition) + 30) and (item 2 of candidatePosition) < ((item 2 of windowPosition) + 220) then
-
                                         set candidateValue to ""
 
                                         try
-
                                             set candidateValue to value of candidate as text
-
                                         end try
 
                                         if candidateValue contains "localhost:" or candidateValue contains "127.0.0.1:" then
-
                                             click candidate
-
                                             delay 0.15
-
                                             set addressFocused to true
-
                                             exit repeat
-
                                         end if
-
                                     end if
-
                                 end if
-
                             end try
-
                         end repeat
-
                     end try
-
                 end if
 
                 if not addressFocused then
-
                     try
-
                         set windowPosition to position of front window
-
                         set windowSize to size of front window
 
                         if (item 1 of windowSize) > 760 then
-
                             set clickX to ((item 1 of windowPosition) + ((item 1 of windowSize) * 0.44)) as integer
-
                             set clickY to ((item 2 of windowPosition) + 81) as integer
-
                             click at {clickX, clickY}
-
                             delay 0.15
-
                             set targetElement to focused UI element
-
                             set targetRole to role of targetElement as text
 
                             if targetRole is "AXTextField" or targetRole is "AXComboBox" or targetRole is "AXSearchField" or targetRole is "AXWebTextField" then
-
                                 set targetSize to size of targetElement
-
                                 set targetPosition to position of targetElement
 
                                 if (item 1 of targetSize) > 240 and (item 2 of targetPosition) < ((item 2 of windowPosition) + 220) then
-
                                     set addressFocused to true
-
                                 end if
-
                             end if
-
                         end if
-
                     end try
-
                 end if
 
                 if addressFocused then
-
-                    -- The extension has already copied the
-                    -- authenticated URL to the clipboard.
-
                     keystroke "a" using {command down}
-
                     keystroke "v" using {command down}
-
                     key code 36
 
                     return "OPENED"
-
                 end if
 
                 delay 0.25
-
             end repeat
-
         end tell
-
     end tell
 
     error "Preview address bar could not be safely focused" number 1001
-
 end run
 `;
-
-/* =========================================================
-   CANCEL PREVIEW AUTOMATION
-========================================================= */
 
 function cancelPreviewProcess() {
     if (!previewProcess) {
@@ -499,10 +344,6 @@ function cancelPreviewProcess() {
 
     previewProcess = null;
 }
-
-/* =========================================================
-   TRIGGER AUTOMATIC PREVIEW
-========================================================= */
 
 function triggerAutomaticPreview(
     name,
@@ -585,61 +426,72 @@ function triggerAutomaticPreview(
     }
 }
 
-/* =========================================================
-   OPEN AUTHENTICATED URL IN NOVA PREVIEW
-========================================================= */
-
-function openInPreview(
-    name,
-    url,
-    stillCurrent
-) {
+function openInPreview(name, url, stillCurrent) {
     if (!validLocalURL(url)) {
         nova.workspace.showErrorMessage(
-            name +
-            ' returned an invalid local URL.'
+            name + ' returned an invalid authenticated local URL.'
         );
-
         return;
     }
 
-    copyPrivateURL(url).then(
-        () => {
-            if (!stillCurrent()) {
-                return;
-            }
-
-            if (autoPreviewEnabled()) {
-                triggerAutomaticPreview(
-                    name,
-                    stillCurrent
-                );
-
-            } else {
-                showManualPreviewInstructions(
-                    name,
-                    'automatic Preview disabled'
-                );
-            }
+    nova.workspace.showActionPanel(
+        name +
+        ' is ready. Choose where to open it. ' +
+        'The URL is private and local.',
+        {
+            buttons: [
+                'Open in Browser',
+                'Open in Nova Preview',
+                'Cancel'
+            ]
         },
-
-        () => {
+        choice => {
             if (!stillCurrent()) {
                 return;
             }
 
-            nova.workspace.showErrorMessage(
-                name +
-                ' is running, but its private URL ' +
-                'could not be copied.'
-            );
+            if (choice === 0) {
+                nova.openURL(url, success => {
+                    if (!success && stillCurrent()) {
+                        nova.workspace.showErrorMessage(
+                            name +
+                            ': The default browser could not open the notebook.'
+                        );
+                    }
+                });
+
+            } else if (choice === 1) {
+                copyPrivateURL(url).then(
+                    () => {
+                        if (!stillCurrent()) {
+                            return;
+                        }
+
+                        if (autoPreviewEnabled()) {
+                            triggerAutomaticPreview(
+                                name,
+                                stillCurrent
+                            );
+                        } else {
+                            showManualPreviewInstructions(
+                                name,
+                                'automatic Preview navigation disabled'
+                            );
+                        }
+                    },
+                    () => {
+                        if (stillCurrent()) {
+                            nova.workspace.showErrorMessage(
+                                name +
+                                ': The private URL could not be copied.'
+                            );
+                        }
+                    }
+                );
+            }
         }
     );
 }
-
-/* =========================================================
-   STOP NOTEBOOK STUDIO PROCESS
-========================================================= */
 
 function stopStudio() {
     if (studioProcess) {
@@ -651,21 +503,15 @@ function stopStudio() {
     studioProcess = null;
     studioURL = null;
     studioNotebook = null;
-
     studioReady = false;
     studioOutput = '';
 }
-
-/* =========================================================
-   LAUNCH NOTEBOOK STUDIO
-========================================================= */
 
 function launchStudio(path) {
     if (!project()) {
         nova.workspace.showErrorMessage(
             'Open a local Nova project first.'
         );
-
         return;
     }
 
@@ -673,7 +519,6 @@ function launchStudio(path) {
         nova.workspace.showErrorMessage(
             'Select an .ipynb file in this project.'
         );
-
         return;
     }
 
@@ -770,7 +615,6 @@ function launchStudio(path) {
                             'Notebook Studio returned ' +
                             'an invalid local URL.'
                         );
-
                         return;
                     }
 
@@ -842,32 +686,22 @@ function launchStudio(path) {
     }
 }
 
-/* =========================================================
-   OPEN NOTEBOOK STUDIO TASK
-========================================================= */
-
 function openStudio() {
     if (!project()) {
         nova.workspace.showErrorMessage(
             'Open a local project folder first.'
         );
-
         return;
     }
 
     selectNotebook(launchStudio);
 }
 
-/* =========================================================
-   CREATE NEW NOTEBOOK
-========================================================= */
-
 function createNotebook() {
     if (!project()) {
         nova.workspace.showErrorMessage(
             'Open a local project folder first.'
         );
-
         return;
     }
 
@@ -890,7 +724,6 @@ function createNotebook() {
                 nova.workspace.showErrorMessage(
                     'Choose a safe relative .ipynb filename.'
                 );
-
                 return;
             }
 
@@ -903,18 +736,6 @@ function createNotebook() {
         }
     );
 }
-
-/* =========================================================
-   JUPYTERLAB NOTEBOOK URL
-========================================================= */
-
-/*
- * JupyterLab runs with its root directory set to
- * the current Nova project.
- *
- * The selected notebook opens directly in JupyterLab
- * using /lab/tree/<relative notebook path>.
- */
 
 function labNotebookURL(path) {
     if (
@@ -966,20 +787,6 @@ function labNotebookURL(path) {
     return url;
 }
 
-/* =========================================================
-   PARSE JUPYTERLAB STARTUP OUTPUT
-========================================================= */
-
-/*
- * Jupyter Server normally prints a local address
- * containing a generated authentication token.
- *
- * Both stdout and stderr are checked because Jupyter
- * versions may print startup messages differently.
- *
- * Private tokens are never written to Nova's logs.
- */
-
 function handleLabOutput(
     child,
     chunk
@@ -1003,7 +810,7 @@ function handleLabOutput(
 
     if (
         /No module named ['"]?jupyterlab|ModuleNotFoundError.*jupyterlab/i
-        .test(cleaned)
+            .test(cleaned)
     ) {
         labStartupError = (
             'JupyterLab is not installed in the Python ' +
@@ -1040,14 +847,17 @@ function handleLabOutput(
 
         labPort = port;
         labToken = token;
-
         labReady = true;
+
+        if (labStartupTimer) {
+            clearTimeout(labStartupTimer);
+            labStartupTimer = null;
+        }
 
         try {
             labURL = labNotebookURL(
                 labNotebook
             );
-
         } catch (error) {
             labReady = false;
 
@@ -1055,7 +865,6 @@ function handleLabOutput(
                 'JupyterLab: ' +
                 error.message
             );
-
             return;
         }
 
@@ -1069,10 +878,6 @@ function handleLabOutput(
     }
 }
 
-/* =========================================================
-   STOP JUPYTERLAB PROCESS
-========================================================= */
-
 function stopLab() {
     if (labProcess) {
         try {
@@ -1082,27 +887,24 @@ function stopLab() {
 
     labProcess = null;
     labReady = false;
-
     labURL = null;
     labNotebook = null;
-
     labPort = null;
     labToken = null;
-
     labOutput = '';
     labStartupError = '';
-}
 
-/* =========================================================
-   LAUNCH OFFICIAL JUPYTERLAB
-========================================================= */
+    if (labStartupTimer) {
+        clearTimeout(labStartupTimer);
+        labStartupTimer = null;
+    }
+}
 
 function launchLab(path) {
     if (!project()) {
         nova.workspace.showErrorMessage(
             'Open a local Nova project first.'
         );
-
         return;
     }
 
@@ -1110,7 +912,6 @@ function launchLab(path) {
         nova.workspace.showErrorMessage(
             'Select an .ipynb file inside this project.'
         );
-
         return;
     }
 
@@ -1133,7 +934,6 @@ function launchLab(path) {
                 labURL,
                 () => labProcess === session
             );
-
         } catch (error) {
             nova.workspace.showErrorMessage(
                 'JupyterLab: ' +
@@ -1152,34 +952,35 @@ function launchLab(path) {
 
     labNotebook = path;
 
-    /*
-     * Use the configured Python installation.
-     *
-     * No packages or environments are installed.
-     *
-     * JupyterLab binds only to 127.0.0.1.
-     * Port 0 requests an available local port.
-     * Token authentication remains enabled.
-     */
+    // Choose a real loopback port and generate a fresh token.
+    // The token is not included in the OS process arguments.
+    const bootstrap = [
+        'import secrets, socket, sys',
+        'from jupyterlab.labapp import main',
+        'with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:',
+        '    sock.bind(("127.0.0.1", 0))',
+        '    port = sock.getsockname()[1]',
+        'token = secrets.token_urlsafe(32)',
+        'sys.argv = [',
+        '    "jupyter-lab",',
+        '    "--no-browser",',
+        '    "--ServerApp.ip=127.0.0.1",',
+        '    "--ServerApp.port=" + str(port),',
+        '    "--ServerApp.port_retries=20",',
+        '    "--ServerApp.open_browser=False",',
+        '    "--ServerApp.allow_remote_access=False",',
+        '    "--IdentityProvider.token=" + token,',
+        '    "--ServerApp.root_dir=" + sys.argv[1],',
+        ']',
+        'raise SystemExit(main())'
+    ].join('\n');
 
     const args = [
         python(),
-        '-m',
-        'jupyterlab',
-
-        '--no-browser',
-
-        '--ServerApp.ip=127.0.0.1',
-
-        '--ServerApp.port=0',
-
-        '--ServerApp.port_retries=0',
-
-        '--ServerApp.open_browser=False',
-
-        '--ServerApp.allow_remote_access=False',
-
-        '--ServerApp.root_dir=' + project()
+        '-u',
+        '-c',
+        bootstrap,
+        project()
     ];
 
     let child;
@@ -1236,6 +1037,18 @@ function launchLab(path) {
 
         child.start();
 
+        labStartupTimer = setTimeout(() => {
+            if (labProcess === child && !labReady) {
+                labStartupError =
+                    'JupyterLab did not report an authenticated local URL. ' +
+                    'Check that the configured Python has JupyterLab installed.';
+
+                try {
+                    child.terminate();
+                } catch (_) {}
+            }
+        }, 30000);
+
     } catch (error) {
         stopLab();
 
@@ -1246,32 +1059,22 @@ function launchLab(path) {
     }
 }
 
-/* =========================================================
-   OPEN JUPYTERLAB TASK
-========================================================= */
-
 function openLab() {
     if (!project()) {
         nova.workspace.showErrorMessage(
             'Open a local project folder first.'
         );
-
         return;
     }
 
     selectNotebook(launchLab);
 }
 
-/* =========================================================
-   COPY AUTHENTICATED URL
-========================================================= */
-
 function copyStudioURL() {
     if (!studioURL) {
         nova.workspace.showInformativeMessage(
             'Open Jupyter Notebook Studio first.'
         );
-
         return;
     }
 
@@ -1295,7 +1098,6 @@ function copyLabURL() {
         nova.workspace.showInformativeMessage(
             'Open JupyterLab first.'
         );
-
         return;
     }
 
@@ -1314,27 +1116,7 @@ function copyLabURL() {
     );
 }
 
-/* =========================================================
-   NOVA TASK ASSISTANT
-========================================================= */
-
-/*
- * Two separate choices are provided in Nova's
- * standard Task selection dropdown:
- *
- * - Jupyter Notebook Studio
- * - JupyterLab
- *
- * Both tasks support:
- *
- * - Task.Run
- * - Task.Build
- *
- * Build is not required before Run.
- */
-
 class JupyterBridgeTaskAssistant {
-
     provideTasks() {
         const studio = new Task(
             'Jupyter Notebook Studio'
@@ -1383,12 +1165,7 @@ class JupyterBridgeTaskAssistant {
     }
 }
 
-/* =========================================================
-   EXTENSION ACTIVATION
-========================================================= */
-
 exports.activate = function () {
-
     nova.commands.register(
         STUDIO_COMMAND,
         openStudio
@@ -1456,12 +1233,7 @@ exports.activate = function () {
     );
 };
 
-/* =========================================================
-   EXTENSION DEACTIVATION
-========================================================= */
-
 exports.deactivate = function () {
-
     cancelPreviewProcess();
 
     stopStudio();
@@ -1469,7 +1241,6 @@ exports.deactivate = function () {
 
     if (taskAssistantDisposable) {
         taskAssistantDisposable.dispose();
-
         taskAssistantDisposable = null;
     }
 };

@@ -132,6 +132,8 @@ let fileHash = null;
 let dirty = false;
 let saving = false;
 let busy = false;
+let sqlBusy = false;
+let sqlRunCellId = null;
 let startingExecution = false;
 let runningAll = false;
 let cancelRunAll = false;
@@ -211,15 +213,21 @@ function syncEditors() {
     }
 }
 
+function isSqlCell(cell) {
+    return cell?.cell_type === 'code' &&
+        cell.metadata?.novaStudioLanguage === 'sql';
+}
+
 function createCell(type = 'code') {
+    const sql = type === 'sql';
     const cell = {
         id: newId(),
-        cell_type: type,
-        metadata: {},
+        cell_type: sql ? 'code' : type,
+        metadata: sql ? {novaStudioLanguage: 'sql'} : {},
         source: ''
     };
 
-    if (type === 'code') {
+    if (cell.cell_type === 'code') {
         cell.outputs = [];
         cell.execution_count = null;
     }
@@ -259,7 +267,7 @@ function updateSaveState() {
 ========================================================= */
 
 function breakpointsOf(cell) {
-    if (!cell || cell.cell_type !== 'code') {
+    if (!cell || cell.cell_type !== 'code' || isSqlCell(cell)) {
         return [];
     }
 
@@ -274,7 +282,12 @@ function breakpointsOf(cell) {
 }
 
 function toggleBreakpoint(cell, line) {
-    if (busy || latestState?.debugPaused) {
+    if (isSqlCell(cell)) {
+        toast('SQL statements do not support Python breakpoints.');
+        return;
+    }
+
+    if (busy || sqlBusy || latestState?.debugPaused) {
         toast(
             'Finish or stop debugging before changing breakpoints.'
         );
@@ -341,7 +354,6 @@ function buildLines(cell, textarea) {
         document.createDocumentFragment();
 
     for (let line = 1; line <= lineCount; line++) {
-        // Breakpoint gutter row.
         const row = el('div', 'nb-gutter-row');
 
         row.dataset.line = String(line);
@@ -358,7 +370,6 @@ function buildLines(cell, textarea) {
         row.title =
             `${active ? 'Remove' : 'Set'} breakpoint at line ${line}`;
 
-        // Separate marker: never replace the line number.
         if (active) {
             const marker = el(
                 'span',
@@ -398,7 +409,6 @@ function buildLines(cell, textarea) {
 
         gutterFragment.appendChild(row);
 
-        // Highlight row behind the code editor.
         const highlight = el(
             'div',
             'nb-execution-row'
@@ -497,8 +507,6 @@ function paintExecutionLine(scrollIntoView = false) {
         line
     );
 
-    // Keep the overlay's vertical position aligned with
-    // the scroll position of the corresponding textarea.
     const overlay = overlayMap.get(location.cellId);
 
     if (overlay) {
@@ -660,7 +668,8 @@ function syncServerOutputs(state) {
 
         if (
             !local ||
-            local.cell_type !== 'code'
+            local.cell_type !== 'code' ||
+            isSqlCell(local)
         ) {
             continue;
         }
@@ -806,7 +815,7 @@ function render() {
     cells().forEach((cell, index) => {
         const card = el(
             'section',
-            `cell ${cell.cell_type}`
+            `cell ${cell.cell_type}${isSqlCell(cell) ? ' sql-cell' : ''}`
         );
 
         card.dataset.cellId = cell.id;
@@ -821,7 +830,7 @@ function render() {
             el(
                 'span',
                 'celltype',
-                cell.cell_type.toUpperCase()
+                isSqlCell(cell) ? 'SQL' : cell.cell_type === 'code' ? 'PYTHON' : cell.cell_type.toUpperCase()
             )
         );
 
@@ -838,19 +847,29 @@ function render() {
         if (cell.cell_type === 'code') {
             bar.appendChild(
                 button(
-                    '▶ Run',
+                    isSqlCell(cell) ? '▶ Run SQL' : '▶ Run',
                     () => runCell(cell.id),
                     'run'
                 )
             );
 
-            bar.appendChild(
-                button(
-                    '◆ Debug',
-                    () => runCell(cell.id, true),
+            if (!isSqlCell(cell)) {
+                bar.appendChild(
+                    button(
+                        '◆ Debug',
+                        () => runCell(cell.id, true),
+                        'debug'
+                    )
+                );
+            } else {
+                const stopSQL = button(
+                    '■ Stop SQL',
+                    cancelSqlExecution,
                     'debug'
-                )
-            );
+                );
+                stopSQL.disabled = !sqlBusy || sqlRunCellId !== cell.id;
+                bar.appendChild(stopSQL);
+            }
 
         } else if (cell.cell_type === 'markdown') {
             bar.appendChild(
@@ -861,6 +880,13 @@ function render() {
                 )
             );
         }
+
+        bar.appendChild(
+            button('＋SQL ↑', () => addCell(index, 'sql'))
+        );
+        bar.appendChild(
+            button('＋SQL ↓', () => addCell(index + 1, 'sql'))
+        );
 
         bar.appendChild(
             el('span', 'spacer')
@@ -1121,7 +1147,7 @@ function render() {
 ========================================================= */
 
 function addCell(index, type) {
-    if (busy) {
+    if (busy || sqlBusy) {
         toast('Finish execution before adding cells');
         return;
     }
@@ -1143,7 +1169,7 @@ function addCell(index, type) {
 }
 
 function duplicateCell(index) {
-    if (busy) return;
+    if (busy || sqlBusy) return;
 
     syncEditors();
 
@@ -1169,7 +1195,7 @@ function duplicateCell(index) {
 }
 
 function moveCell(index, direction) {
-    if (busy) return;
+    if (busy || sqlBusy) return;
 
     const next = index + direction;
 
@@ -1195,32 +1221,30 @@ function moveCell(index, direction) {
 }
 
 function changeCellType(index) {
-    if (busy) return;
+    if (busy || sqlBusy) return;
 
     const cell = notebook.cells[index];
-
     const type = prompt(
-        'Cell type: code, markdown or raw',
-        cell.cell_type
-    );
+        'Cell type: python, sql, markdown or raw',
+        isSqlCell(cell) ? 'sql' : (cell.cell_type === 'code' ? 'python' : cell.cell_type)
+    )?.trim().toLowerCase();
 
     if (!type) return;
 
-    if (
-        !['code', 'markdown', 'raw'].includes(type)
-    ) {
+    if (!['python', 'code', 'sql', 'markdown', 'raw'].includes(type)) {
         toast('Invalid cell type');
         return;
     }
 
     syncEditors();
+    cell.cell_type = ['sql', 'python', 'code'].includes(type) ? 'code' : type;
+    cell.metadata ||= {};
+    if (type === 'sql') cell.metadata.novaStudioLanguage = 'sql';
+    else delete cell.metadata.novaStudioLanguage;
 
-    cell.cell_type = type;
-
-    if (type === 'code') {
+    if (cell.cell_type === 'code') {
         cell.outputs ||= [];
         cell.execution_count ??= null;
-
     } else {
         delete cell.outputs;
         delete cell.execution_count;
@@ -1231,7 +1255,7 @@ function changeCellType(index) {
 }
 
 function deleteCell(index) {
-    if (busy) return;
+    if (busy || sqlBusy) return;
 
     if (notebook.cells.length <= 1) {
         toast('A notebook must contain at least one cell');
@@ -1257,7 +1281,7 @@ function deleteCell(index) {
 async function save(silent = false) {
     if (!notebook) return false;
 
-    if (saving || busy) {
+    if (saving || busy || sqlBusy) {
         if (!silent) {
             toast('Wait until execution finishes');
         }
@@ -1315,6 +1339,7 @@ async function clearOutputs() {
 
     if (
         busy ||
+        sqlBusy ||
         startingExecution ||
         latestState?.busy
     ) {
@@ -1329,7 +1354,6 @@ async function clearOutputs() {
         return;
     }
 
-    // Save unsaved code before changing the notebook file.
     if (!await save(true)) {
         return;
     }
@@ -1382,6 +1406,123 @@ async function clearOutputs() {
 }
 
 /* =========================================================
+   STANDALONE MYSQL CODE CELLS
+   Plain SQL: no %%sql, JupySQL, or Python-magics required.
+========================================================= */
+
+async function cancelSqlExecution() {
+    if (!sqlBusy) {
+        toast('No SQL query is running');
+        return;
+    }
+
+    try {
+        const result = await request('/api/sql/cancel', {});
+        toast(result.cancelled ? 'MySQL cancellation requested' : 'SQL already finished');
+    } catch (error) {
+        toast('SQL stop failed: ' + error.message);
+    }
+}
+
+async function runSqlCell(cellId, focusNext = false, fromRunAll = false) {
+    const cell = cellById(cellId);
+    if (!isSqlCell(cell)) return false;
+
+    if (busy || sqlBusy || saving || startingExecution || (runningAll && !fromRunAll)) {
+        toast('Wait until the current execution finishes');
+        return false;
+    }
+
+    syncEditors();
+    const sql = textOf(cell).trim();
+    if (!sql) {
+        toast('SQL cell is blank. Enter a SQL statement.');
+        return false;
+    }
+
+    if (!await save(true)) return false;
+
+    sqlBusy = true;
+    sqlRunCellId = cellId;
+    const card = cellElement(cellId);
+    card?.classList.add('running');
+    if (card) {
+        const stop = Array.from(card.querySelectorAll('button'))
+            .find(node => node.textContent.includes('Stop SQL'));
+        if (stop) stop.disabled = false;
+    }
+    toast('Executing MySQL query locally…');
+
+    let ok = false;
+    try {
+        const result = await request('/api/sql/run', {
+            sql,
+            loginPath: 'nova',
+            timeout: 45
+        });
+
+        cell.outputs = [];
+        if (result.output) {
+            cell.outputs.push({
+                output_type: 'stream', name: 'stdout', text: result.output
+            });
+        }
+        if (result.error) {
+            cell.outputs.push({
+                output_type: 'error',
+                ename: 'MySQLError',
+                evalue: result.error,
+                traceback: []
+            });
+        }
+        if (result.ok && !result.output && !result.error) {
+            cell.outputs.push({
+                output_type: 'stream', name: 'stdout', text: 'Query completed successfully.\n'
+            });
+        }
+        ok = Boolean(result.ok);
+    } catch (error) {
+        cell.outputs = [{
+            output_type: 'error',
+            ename: 'MySQLError',
+            evalue: error.message,
+            traceback: []
+        }];
+    } finally {
+        sqlBusy = false;
+        sqlRunCellId = null;
+        card?.classList.remove('running');
+        if (card) {
+            const stop = Array.from(card.querySelectorAll('button'))
+                .find(node => node.textContent.includes('Stop SQL'));
+            if (stop) stop.disabled = true;
+        }
+    }
+
+    const output = card?.querySelector('.cell-output');
+    if (output) renderOutputs(cell, output);
+    setDirty();
+    if (!await save(true)) {
+        toast('SQL result displayed but notebook save failed. Save manually.');
+        return false;
+    }
+
+    toast(ok ? 'MySQL query completed' : 'MySQL returned an error');
+    if (focusNext) {
+        const index = cells().findIndex(item => item.id === cellId);
+        let next = cells()[index + 1];
+        if (!next) {
+            next = createCell('sql');
+            notebook.cells.push(next);
+            render();
+            setDirty();
+        }
+        editorMap.get(next.id)?.focus();
+    }
+    return ok;
+}
+
+/* =========================================================
    RUN / DEBUG ONE CELL
 ========================================================= */
 
@@ -1391,7 +1532,17 @@ async function runCell(
     focusNext = false,
     fromRunAll = false
 ) {
+    const target = cellById(cellId);
+    if (isSqlCell(target)) {
+        if (debug) {
+            toast('SQL cells do not support the Python step debugger.');
+            return false;
+        }
+        return runSqlCell(cellId, focusNext, fromRunAll);
+    }
+
     if (
+        sqlBusy ||
         busy ||
         startingExecution ||
         saving ||
@@ -1543,6 +1694,7 @@ async function runAllCells() {
     if (
         runningAll ||
         busy ||
+        sqlBusy ||
         startingExecution ||
         !notebook
     ) {
@@ -1571,9 +1723,10 @@ async function runAllCells() {
 
             if (!started) break;
 
-            const completed = await waitUntilIdle();
-
-            if (!completed) break;
+            if (!isSqlCell(cellById(id))) {
+                const completed = await waitUntilIdle();
+                if (!completed) break;
+            }
         }
 
     } finally {
@@ -1880,7 +2033,10 @@ function updateFloatingDebugger(state) {
         floatingStepIntoBtn: canStep,
         floatingStepOutBtn: canStep,
         floatingPauseBtn: canPause,
-        floatingStopBtn: canStop
+        floatingStopBtn: canStop,
+        floatingVariablesBtn: Boolean(state.debugPaused),
+        floatingClearBpBtn: !state.busy && !sqlBusy && !state.debugPaused,
+        floatingRestartKernelBtn: !sqlBusy
     };
 
     for (const [id, enabled] of Object.entries(controls)) {
@@ -1890,8 +2046,45 @@ function updateFloatingDebugger(state) {
     }
 }
 
+function clearAllBreakpoints() {
+    if (busy || sqlBusy || latestState?.debugPaused) {
+        toast('Stop execution before clearing breakpoints');
+        return;
+    }
+    const count = cells().reduce((total, cell) => total + breakpointsOf(cell).length, 0);
+    if (!count) { toast('No breakpoints to clear'); return; }
+    if (!confirm(`Remove all ${count} Python breakpoints?`)) return;
+    for (const cell of cells()) {
+        if (cell.cell_type === 'code' && !isSqlCell(cell)) {
+            cell.metadata ||= {};
+            cell.metadata.novaStudioBreakpoints = [];
+            const editor = editorMap.get(cell.id);
+            if (editor) buildLines(cell, editor);
+        }
+    }
+    setDirty();
+    toast('All Python breakpoints cleared');
+}
+
 function initializeFloatingDebugger() {
     showFloatingDebugger(false);
+
+    const container = document.querySelector('.floating-debugger-actions');
+    if (container) {
+        const extras = [
+            ['floatingVariablesBtn', '▦', 'Show variables and call information', () => setSidebar('inspector', true)],
+            ['floatingClearBpBtn', '⌧', 'Clear all Python breakpoints', clearAllBreakpoints],
+            ['floatingRestartKernelBtn', '↻', 'Restart Python kernel (resets variables)', () => restartKernel()]
+        ];
+        for (const [id, label, title, callback] of extras) {
+            if ($(id)) continue;
+            const control = button(label, callback, 'floating-debug-button');
+            control.id = id;
+            control.title = title;
+            control.setAttribute('aria-label', title);
+            container.appendChild(control);
+        }
+    }
 
     const actions = {
         floatingContinueBtn:
@@ -1998,8 +2191,6 @@ function applyServerState(state) {
     ) {
         syncServerOutputs(state);
 
-        // Do not overwrite a new local file hash while
-        // a notebook save is in progress.
         if (!saving) {
             fileHash = state.fileHash;
         }
@@ -2339,6 +2530,7 @@ function initializeSidebars() {
 
 async function interruptKernel() {
     cancelRunAll = true;
+    if (sqlBusy) return cancelSqlExecution();
 
     try {
         const response = await request(
@@ -2506,6 +2698,13 @@ async function init() {
 ========================================================= */
 
 function initializeToolbar() {
+    const addSQL = button('+ SQL', () => {
+        if (notebook) addCell(cells().length, 'sql');
+    });
+    addSQL.id = 'addSqlBtn';
+    addSQL.title = 'Insert a blank standalone MySQL cell';
+    $('addCodeBtn').after(addSQL);
+
     $('saveBtn').onclick = () => save();
 
     $('clearBtn').onclick = clearOutputs;

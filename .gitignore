@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Nova local project settings
+.nova/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Temporary files
+*.log
+*.tmp
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter temporary files
+.ipynb_checkpoints/
